@@ -2,22 +2,36 @@
 DO
 $$
 BEGIN
-   PERFORM pg_terminate_backend(pid) 
-   FROM pg_stat_activity 
-   WHERE datname = 'rianthis';
+   -- Only terminate connections if the database exists
+   IF EXISTS (SELECT 1 FROM pg_database WHERE datname = 'rianthis') THEN
+      PERFORM pg_terminate_backend(pid) 
+      FROM pg_stat_activity 
+      WHERE datname = 'rianthis';
+   END IF;
 END
 $$;
 
+-- Drop and recreate the database
 DROP DATABASE IF EXISTS rianthis;
 CREATE DATABASE rianthis;
 \c rianthis;
 
--- Set the import directory from environment variable or use default
-\set import_dir `echo "${IMPORT_DIR:-/tmp}"`
-\echo 'Importing data from directory: ' :'import_dir'
+-- Disable notice messages to avoid 'table does not exist' warnings
+SET client_min_messages TO WARNING;
 
--- 1. Raw-Tabelle erstellen
-DROP TABLE IF EXISTS rianthis_time_entries_raw;
+-- 1. Drop tables if they exist (suppress notice messages)
+DO $$
+BEGIN
+   -- Drop tables in the correct order to respect foreign key constraints
+   DROP TABLE IF EXISTS contract_info CASCADE;
+   DROP TABLE IF EXISTS rianthis_time_entries_processed CASCADE;
+   DROP TABLE IF EXISTS rianthis_team_mapping CASCADE;
+   DROP TABLE IF EXISTS rianthis_time_entries_raw CASCADE;
+   DROP TABLE IF EXISTS contract_info_raw CASCADE;
+EXCEPTION WHEN OTHERS THEN
+   -- Ignore any errors during table dropping
+   NULL;
+END $$;
 
 CREATE TABLE rianthis_time_entries_raw (
     user_id BIGINT,
