@@ -279,7 +279,18 @@ CREATE TABLE rianthis_team_mapping (
 -- Import rianthis_team_mapping.csv
 \copy rianthis_team_mapping FROM '/import/rianthis_team_mapping.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
 
--- 4. Import Contract_Info.csv
+-- 4. Create and populate contract_info_raw table
+DROP TABLE IF EXISTS contract_info_raw;
+
+CREATE TABLE contract_info_raw (
+    list_name TEXT,
+    customer_type TEXT,
+    angebot_per_hour TEXT,
+    vertragsbegin TEXT,
+    vertragsstunden TEXT
+);
+
+-- Import Contract_Info.csv
 \copy contract_info_raw FROM '/import/Contract_Info.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
 
 -- 3. Processed-Tabelle erstellen
@@ -307,7 +318,19 @@ FROM rianthis_time_entries_raw;
 CREATE INDEX IF NOT EXISTS idx_time_entries_user_start
 ON rianthis_time_entries_processed(username, start_timestamp);
 
--- 6. Role nachträglich aktualisieren
+-- 6. Process contract info
+DROP TABLE IF EXISTS contract_info;
+
+CREATE TABLE contract_info AS
+SELECT 
+    list_name,
+    customer_type,
+    angebot_per_hour,
+    vertragsbegin,
+    vertragsstunden
+FROM contract_info_raw;
+
+-- 7. Role nachträglich aktualisieren
 ALTER TABLE rianthis_time_entries_processed
 ADD COLUMN IF NOT EXISTS role TEXT;
 
