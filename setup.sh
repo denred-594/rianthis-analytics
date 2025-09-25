@@ -5,24 +5,83 @@ set -euo pipefail
 # Rianthis Full Setup Script (Linux/macOS)
 # ======================================
 
-# KONFIG: Pfade auf deinem Linux/Mac anpassen
-CSV_DIR="/home/denny/Documents/Metabase"
-SQL_FILE="${CSV_DIR}/setup_full.sql"
-CONTAINER_DB="metabase_db"
-DB_USER="metabase"
-DB_NAME="postgres"
+# Script directory (where this script is located)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# 1) CSV-Dateien ins Docker-Container kopieren
-docker cp "${CSV_DIR}/rianthis_test_data.csv" "${CONTAINER_DB}:/rianthis_test_data.csv"
-docker cp "${CSV_DIR}/rianthis_team_mapping.csv" "${CONTAINER_DB}:/rianthis_team_mapping.csv"
-docker cp "${CSV_DIR}/Contract_Info.csv"        "${CONTAINER_DB}:/Contract_Info.csv"
+# Configuration - can be overridden by environment variables
+: "${CONTAINER_DB:=metabase_db}"
+: "${DB_USER:=metabase}"
+: "${DB_NAME:=postgres}"
+: "${DOCKER_COMPOSE_CMD:=$(command -v docker-compose || echo "docker compose")}"
 
-# 2) SQL-Skript ins Docker-Container kopieren und ausführen
-docker cp "${SQL_FILE}" "${CONTAINER_DB}:/setup_full.sql"
-docker exec -i "${CONTAINER_DB}" psql -U "${DB_USER}" -d "${DB_NAME}" -f /setup_full.sql
+# Required files
+REQUIRED_FILES=(
+  "rianthis_test_data.csv"
+  "rianthis_team_mapping.csv"
+  "Contract_Info.csv"
+  "setup_full.sql"
+)
 
-# 3) Docker-Compose neu starten
-# Hinweis: je nach Installation 'docker compose' oder 'docker-compose'
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Function to print error messages
+error_exit() {
+  echo -e "${RED}Error: $1${NC}" >&2
+  exit 1
+}
+
+# Function to check if a command exists
+command_exists() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+# Check if Docker is installed and running
+if ! command_exists docker; then
+  error_exit "Docker is not installed. Please install Docker and try again."
+fi
+
+if ! docker info >/dev/null 2>&1; then
+  error_exit "Docker daemon is not running. Please start Docker and try again."
+fi
+
+# Check for required files
+MISSING_FILES=()
+for file in "${REQUIRED_FILES[@]}"; do
+  if [[ ! -f "${SCRIPT_DIR}/${file}" ]]; then
+    MISSING_FILES+=("$file")
+  fi
+done
+
+if [ ${#MISSING_FILES[@]} -ne 0 ]; then
+  echo -e "${YELLOW}Warning: The following required files are missing:${NC}"
+  for file in "${MISSING_FILES[@]}"; do
+    echo "- ${file}"
+  done
+  error_exit "Please ensure all required files are in the same directory as this script."
+fi
+
+echo -e "${GREEN}Starting setup...${NC}"
+
+# 1) Copy CSV files to Docker container
+echo -e "${YELLOW}Copying CSV files to container...${NC}"
+docker cp "${SCRIPT_DIR}/rianthis_test_data.csv" "${CONTAINER_DB}:/rianthis_test_data.csv" || error_exit "Failed to copy rianthis_test_data.csv"
+docker cp "${SCRIPT_DIR}/rianthis_team_mapping.csv" "${CONTAINER_DB}:/rianthis_team_mapping.csv" || error_exit "Failed to copy rianthis_team_mapping.csv"
+docker cp "${SCRIPT_DIR}/Contract_Info.csv" "${CONTAINER_DB}:/Contract_Info.csv" || error_exit "Failed to copy Contract_Info.csv"
+
+# 2) Copy and execute SQL script
+echo -e "${YELLOW}Copying and executing SQL script...${NC}"
+docker cp "${SCRIPT_DIR}/setup_full.sql" "${CONTAINER_DB}:/setup_full.sql" || error_exit "Failed to copy setup_full.sql"
+
+if ! docker exec -i "${CONTAINER_DB}" psql -U "${DB_USER}" -d "${DB_NAME}" -f /setup_full.sql; then
+  error_exit "SQL import failed!"
+fi
+
+# 3) Restart Docker Compose
+echo -e "${YELLOW}Restarting Docker Compose...${NC}"
 if docker compose version >/dev/null 2>&1; then
   docker compose down
   docker compose up -d
