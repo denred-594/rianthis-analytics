@@ -12,6 +12,10 @@ DROP DATABASE IF EXISTS rianthis;
 CREATE DATABASE rianthis;
 \c rianthis;
 
+-- Set the import directory from environment variable or use default
+\set import_dir `echo "${IMPORT_DIR:-/tmp}"`
+\echo 'Importing data from directory: ' :'import_dir'
+
 -- 1. Raw-Tabelle erstellen
 DROP TABLE IF EXISTS rianthis_time_entries_raw;
 
@@ -62,7 +66,7 @@ CREATE TABLE rianthis_time_entries_raw (
 );
 
 -- 2. CSV importieren
-COPY rianthis_time_entries_raw FROM '/rianthis_test_data.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"', ESCAPE '\');
+COPY rianthis_time_entries_raw FROM :'import_dir'/rianthis_test_data.csv WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"', ESCAPE '\\');
 
 -- 3. Processed-Tabelle erstellen
 DROP TABLE IF EXISTS rianthis_time_entries_processed;
