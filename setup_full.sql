@@ -235,7 +235,7 @@ SELECT
     NULL, -- folder_id
     NULL, -- folder_name
     NULL, -- list_id
-    list_name,
+    NULL, -- list_name (not in source data)
     task_id,
     task_name,
     task_status,
