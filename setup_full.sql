@@ -65,9 +65,107 @@ CREATE TABLE rianthis_time_entries_raw (
     phase_dep TEXT
 );
 
--- 2. Import CSV files using direct paths
+-- 2. Create a temporary table with text columns to import the raw data
+CREATE TABLE rianthis_time_entries_raw_text (
+    user_id TEXT,
+    username TEXT,
+    time_entry_id TEXT,
+    description TEXT,
+    billable TEXT,  -- Will be converted from 'WAHR'/'FALSCH' to boolean
+    time_labels TEXT,
+    start TEXT,
+    start_text TEXT,
+    stop TEXT,
+    stop_text TEXT,
+    time_tracked TEXT,
+    time_tracked_text TEXT,
+    space_id TEXT,
+    space_name TEXT,
+    folder_id TEXT,
+    folder_name TEXT,
+    list_id TEXT,
+    list_name TEXT,
+    task_id TEXT,
+    task_name TEXT,
+    task_status TEXT,
+    due_date TEXT,
+    due_date_text TEXT,
+    start_date TEXT,
+    start_date_text TEXT,
+    task_time_estimated TEXT,
+    task_time_estimated_text TEXT,
+    task_time_spent TEXT,
+    task_time_spent_text TEXT,
+    user_total_time_estimated TEXT,
+    user_total_time_estimated_text TEXT,
+    user_total_time_tracked TEXT,
+    user_total_time_tracked_text TEXT,
+    tags TEXT,
+    checklists TEXT,
+    user_period_time_spent TEXT,
+    user_period_time_spent_text TEXT,
+    date_created TEXT,
+    date_created_text TEXT,
+    custom_task_id TEXT,
+    parent_task_id TEXT,
+    progress TEXT,
+    phase_dep TEXT
+);
+
+-- 3. Import CSV files using direct paths
 \echo 'Importing rianthis_test_data.csv'
-\copy rianthis_time_entries_raw FROM '/import/rianthis_test_data.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
+\copy rianthis_time_entries_raw_text FROM '/import/rianthis_test_data.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
+
+-- 4. Convert the text data to the final table with proper types
+INSERT INTO rianthis_time_entries_raw
+SELECT 
+    user_id::BIGINT,
+    username,
+    time_entry_id::BIGINT,
+    description,
+    CASE WHEN billable = 'WAHR' THEN true ELSE false END,
+    time_labels,
+    start::BIGINT,
+    start_text,
+    stop::BIGINT,
+    stop_text,
+    time_tracked::BIGINT,
+    time_tracked_text,
+    space_id::BIGINT,
+    space_name,
+    folder_id::BIGINT,
+    folder_name,
+    list_id::BIGINT,
+    list_name,
+    task_id,
+    task_name,
+    task_status,
+    due_date::BIGINT,
+    due_date_text,
+    start_date::BIGINT,
+    start_date_text,
+    task_time_estimated::BIGINT,
+    task_time_estimated_text,
+    task_time_spent::BIGINT,
+    task_time_spent_text,
+    user_total_time_estimated::BIGINT,
+    user_total_time_estimated_text,
+    user_total_time_tracked::BIGINT,
+    user_total_time_tracked_text,
+    tags,
+    checklists,
+    user_period_time_spent::BIGINT,
+    user_period_time_spent_text,
+    date_created::BIGINT,
+    date_created_text,
+    custom_task_id,
+    parent_task_id,
+    progress::INT,
+    phase_dep
+FROM rianthis_time_entries_raw_text;
+
+-- Clean up the temporary table
+DROP TABLE rianthis_time_entries_raw_text;
 
 \echo 'Importing rianthis_team_mapping.csv'
 \copy rianthis_team_mapping FROM '/import/rianthis_team_mapping.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
