@@ -83,13 +83,13 @@ CREATE TABLE rianthis_time_entries_raw (
 \echo 'Importing CSV files...'
 
 -- Import rianthis_test_data.csv
-\copy rianthis_time_entries_raw FROM '/tmp/rianthis_test_data.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
+\copy rianthis_time_entries_raw FROM '/import/rianthis_test_data.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
 
 -- Import rianthis_team_mapping.csv
-\copy rianthis_team_mapping FROM '/tmp/rianthis_team_mapping.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
+\copy rianthis_team_mapping FROM '/import/rianthis_team_mapping.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
 
 -- Import Contract_Info.csv
-\copy contract_info_raw FROM '/tmp/Contract_Info.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
+\copy contract_info_raw FROM '/import/Contract_Info.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
 
 -- 3. Processed-Tabelle erstellen
 DROP TABLE IF EXISTS rianthis_time_entries_processed;
