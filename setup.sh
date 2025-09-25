@@ -120,20 +120,29 @@ wait_for_db
 # 3) Copy files to container
 info "Copying required files to container..."
 
-# Create a temporary directory in the container
-TEMP_DIR="/tmp/rianthis_import_$(date +%s)"
-docker exec ${CONTAINER_DB} mkdir -p ${TEMP_DIR} || error_exit "Failed to create temp directory in container"
+# Create a consistent import directory in the container
+IMPORT_DIR="/import"
+docker exec ${CONTAINER_DB} mkdir -p ${IMPORT_DIR} || error_exit "Failed to create import directory in container"
 
 # Copy files to the container
-for file in "rianthis_test_data.csv" "rianthis_team_mapping.csv" "Contract_Info.csv" "setup_full.sql"; do
+for file in "rianthis_test_data.csv" "rianthis_team_mapping.csv" "Contract_Info.csv"; do
     info "Copying ${file} to container..."
-    docker cp "${SCRIPT_DIR}/${file}" "${CONTAINER_DB}:${TEMP_DIR}/${file}" || error_exit "Failed to copy ${file}"
+    docker cp "${SCRIPT_DIR}/${file}" "${CONTAINER_DB}:${IMPORT_DIR}/${file}" || error_exit "Failed to copy ${file}"
     
     # Verify the file was copied
-    if ! docker exec ${CONTAINER_DB} test -f "${TEMP_DIR}/${file}"; then
+    if ! docker exec ${CONTAINER_DB} test -f "${IMPORT_DIR}/${file}"; then
         error_exit "Failed to verify ${file} was copied to container"
     fi
 done
+
+# Copy the SQL file to a standard location
+SQL_PATH="/tmp/setup_full.sql"
+docker cp "${SCRIPT_DIR}/setup_full.sql" "${CONTAINER_DB}:${SQL_PATH}" || error_exit "Failed to copy setup_full.sql"
+
+# Verify the SQL file was copied
+if ! docker exec ${CONTAINER_DB} test -f "${SQL_PATH}"; then
+    error_exit "Failed to verify setup_full.sql was copied to container"
+fi
 
 # 4) Execute SQL script with detailed error handling
 info "Executing SQL script with detailed logging..."

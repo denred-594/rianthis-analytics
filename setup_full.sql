@@ -65,20 +65,15 @@ CREATE TABLE rianthis_time_entries_raw (
     phase_dep TEXT
 );
 
--- 2. Import CSV files directly with proper escaping
-\set csv_file_1 :import_dir'/rianthis_test_data.csv'
-\set csv_file_2 :import_dir'/rianthis_team_mapping.csv'
-\set csv_file_3 :import_dir'/Contract_Info.csv'
+-- 2. Import CSV files using direct paths
+\echo 'Importing rianthis_test_data.csv'
+\copy rianthis_time_entries_raw FROM '/import/rianthis_test_data.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
 
--- 3. Import each CSV file with explicit COPY commands
-\echo 'Importing file: ' :csv_file_1
-\copy rianthis_time_entries_raw FROM :'csv_file_1' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
+\echo 'Importing rianthis_team_mapping.csv'
+\copy rianthis_team_mapping FROM '/import/rianthis_team_mapping.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
 
-\echo 'Importing file: ' :csv_file_2
-\copy rianthis_team_mapping FROM :'csv_file_2' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
-
-\echo 'Importing file: ' :csv_file_3
-\copy contract_info_raw FROM :'csv_file_3' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
+\echo 'Importing Contract_Info.csv'
+\copy contract_info_raw FROM '/import/Contract_Info.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
 
 -- 3. Processed-Tabelle erstellen
 DROP TABLE IF EXISTS rianthis_time_entries_processed;
