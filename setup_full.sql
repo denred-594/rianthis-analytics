@@ -65,8 +65,22 @@ CREATE TABLE rianthis_time_entries_raw (
     phase_dep TEXT
 );
 
--- 2. CSV importieren
-COPY rianthis_time_entries_raw FROM :'import_dir'/rianthis_test_data.csv WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"', ESCAPE '\\');
+-- 2. Create a function to import CSV files
+CREATE OR REPLACE FUNCTION import_csv_file(table_name text, file_name text) RETURNS void AS $$
+BEGIN
+    EXECUTE format('COPY %I FROM %L WITH (FORMAT csv, DELIMITER '';'', HEADER true, QUOTE ''"'', ESCAPE ''\\'')', 
+                  table_name, 
+                  file_name);
+END;
+$$ LANGUAGE plpgsql;
+
+-- 3. Import CSV files using the function
+SELECT import_csv_file('rianthis_time_entries_raw', :'import_dir' || '/rianthis_test_data.csv');
+SELECT import_csv_file('rianthis_team_mapping', :'import_dir' || '/rianthis_team_mapping.csv');
+SELECT import_csv_file('contract_info_raw', :'import_dir' || '/Contract_Info.csv');
+
+-- Drop the helper function after use
+DROP FUNCTION import_csv_file(text, text);
 
 -- 3. Processed-Tabelle erstellen
 DROP TABLE IF EXISTS rianthis_time_entries_processed;
