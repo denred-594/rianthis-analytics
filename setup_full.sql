@@ -117,52 +117,84 @@ CREATE TABLE rianthis_time_entries_raw_text (
 \copy rianthis_time_entries_raw_text FROM '/import/rianthis_test_data.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
 
 -- 4. Convert the text data to the final table with proper types
+-- First, create a function to convert scientific notation with comma to numeric
+CREATE OR REPLACE FUNCTION convert_scientific(text) RETURNS NUMERIC AS $$
+DECLARE
+    result NUMERIC;
+BEGIN
+    -- Handle empty strings
+    IF $1 IS NULL OR $1 = '' THEN
+        RETURN NULL;
+    END IF;
+    
+    -- Replace comma with dot for decimal separator
+    -- and convert to numeric
+    BEGIN
+        RETURN (REPLACE($1, ',', '.')::NUMERIC);
+    EXCEPTION WHEN OTHERS THEN
+        -- If conversion fails, try to handle scientific notation
+        IF $1 ~* '^[0-9,]+[eE][+-]?[0-9]+$' THEN
+            RETURN (REPLACE(SPLIT_PART($1, 'E', 1), ',', '.')::NUMERIC * 
+                   (10 ^ SPLIT_PART($1, 'E', 2)::INTEGER));
+        ELSE
+            RAISE;
+        END IF;
+    END;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- 5. Convert the data with proper type handling
 INSERT INTO rianthis_time_entries_raw
 SELECT 
-    user_id::BIGINT,
+    NULLIF(user_id, '')::BIGINT,
     username,
-    time_entry_id::BIGINT,
+    NULLIF(time_entry_id, '')::BIGINT,
     description,
     CASE WHEN billable = 'WAHR' THEN true ELSE false END,
     time_labels,
-    start::BIGINT,
+    (convert_scientific(start) * 1000)::BIGINT, -- Convert to milliseconds if needed
     start_text,
-    stop::BIGINT,
+    (convert_scientific(stop) * 1000)::BIGINT,  -- Convert to milliseconds if needed
     stop_text,
-    time_tracked::BIGINT,
+    NULLIF(time_tracked, '')::BIGINT,
     time_tracked_text,
-    space_id::BIGINT,
+    NULLIF(space_id, '')::BIGINT,
     space_name,
-    folder_id::BIGINT,
+    NULLIF(folder_id, '')::BIGINT,
     folder_name,
-    list_id::BIGINT,
+    NULLIF(list_id, '')::BIGINT,
     list_name,
     task_id,
     task_name,
     task_status,
-    due_date::BIGINT,
+    NULLIF(due_date, '')::BIGINT,
     due_date_text,
-    start_date::BIGINT,
+    NULLIF(start_date, '')::BIGINT,
     start_date_text,
-    task_time_estimated::BIGINT,
+    NULLIF(task_time_estimated, '')::BIGINT,
     task_time_estimated_text,
-    task_time_spent::BIGINT,
+    NULLIF(task_time_spent, '')::BIGINT,
     task_time_spent_text,
-    user_total_time_estimated::BIGINT,
+    NULLIF(user_total_time_estimated, '')::BIGINT,
     user_total_time_estimated_text,
-    user_total_time_tracked::BIGINT,
+    NULLIF(user_total_time_tracked, '')::BIGINT,
     user_total_time_tracked_text,
     tags,
     checklists,
-    user_period_time_spent::BIGINT,
+    NULLIF(user_period_time_spent, '')::BIGINT,
     user_period_time_spent_text,
-    date_created::BIGINT,
+    (convert_scientific(date_created) * 1000)::BIGINT, -- Convert to milliseconds if needed
     date_created_text,
     custom_task_id,
     parent_task_id,
-    progress::INT,
+    NULLIF(progress, '')::INT,
     phase_dep
-FROM rianthis_time_entries_raw_text;
+FROM rianthis_time_entries_raw_text
+-- Only include rows with valid data
+WHERE user_id ~ '^[0-9]+$';
+
+-- Clean up the helper function
+DROP FUNCTION convert_scientific(text);
 
 -- Clean up the temporary table
 DROP TABLE rianthis_time_entries_raw_text;
