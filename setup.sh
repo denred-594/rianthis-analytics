@@ -117,19 +117,32 @@ fi
 # 2) Wait for database to be ready
 wait_for_db
 
-# 3) Copy CSV files to Docker container
-info "Copying CSV files to container..."
-docker cp "${SCRIPT_DIR}/rianthis_test_data.csv" "${CONTAINER_DB}:/rianthis_test_data.csv" || error_exit "Failed to copy rianthis_test_data.csv"
-docker cp "${SCRIPT_DIR}/rianthis_team_mapping.csv" "${CONTAINER_DB}:/rianthis_team_mapping.csv" || error_exit "Failed to copy rianthis_team_mapping.csv"
-docker cp "${SCRIPT_DIR}/Contract_Info.csv" "${CONTAINER_DB}:/Contract_Info.csv" || error_exit "Failed to copy Contract_Info.csv"
+# 3) Copy files to container
+info "Copying required files to container..."
 
-# 4) Copy and execute SQL script
-info "Copying and executing SQL script..."
-docker cp "${SCRIPT_DIR}/setup_full.sql" "${CONTAINER_DB}:/setup_full.sql" || error_exit "Failed to copy setup_full.sql"
+# Create a temporary directory in the container
+TEMP_DIR="/tmp/rianthis_import_$(date +%s)"
+docker exec ${CONTAINER_DB} mkdir -p ${TEMP_DIR} || error_exit "Failed to create temp directory in container"
 
-if ! docker exec -i "${CONTAINER_DB}" psql -U "${DB_USER}" -d "${DB_NAME}" -f /setup_full.sql; then
-  error_exit "SQL import failed!"
+# Copy files to the container
+for file in "rianthis_test_data.csv" "rianthis_team_mapping.csv" "Contract_Info.csv" "setup_full.sql"; do
+    info "Copying ${file} to container..."
+    docker cp "${SCRIPT_DIR}/${file}" "${CONTAINER_DB}:${TEMP_DIR}/${file}" || error_exit "Failed to copy ${file}"
+    
+    # Verify the file was copied
+    if ! docker exec ${CONTAINER_DB} test -f "${TEMP_DIR}/${file}"; then
+        error_exit "Failed to verify ${file} was copied to container"
+    fi
+done
+
+# 4) Execute SQL script
+info "Executing SQL script..."
+if ! docker exec -i "${CONTAINER_DB}" psql -U "${DB_USER}" -d "${DB_NAME}" -f "${TEMP_DIR}/setup_full.sql"; then
+    error_exit "SQL import failed! Check the logs above for details."
 fi
+
+# Clean up temporary files
+docker exec ${CONTAINER_DB} rm -rf "${TEMP_DIR}"
 
 # 5) Restart services to apply changes
 info "Restarting services to apply changes..."
