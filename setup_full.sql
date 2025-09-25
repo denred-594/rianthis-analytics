@@ -82,20 +82,31 @@ CREATE TABLE rianthis_time_entries_raw (
 -- 2. Import CSV files using direct paths with proper type handling
 \echo 'Importing CSV files...'
 
--- Create a staging table with text columns to import the raw data
+-- First, let's check the actual structure of the CSV file
+-- Create a staging table with a single text column to import the raw data first
 DROP TABLE IF EXISTS rianthis_time_entries_staging;
 CREATE TABLE rianthis_time_entries_staging (
+    line TEXT
+);
+
+-- Import the raw data into the staging table
+\copy rianthis_time_entries_staging FROM '/import/rianthis_test_data.csv' WITH (FORMAT text);
+
+-- Now create a proper staging table based on the actual CSV structure
+DROP TABLE IF EXISTS rianthis_time_entries_staging_parsed;
+CREATE TABLE rianthis_time_entries_staging_parsed (
+    id TEXT,
     username TEXT,
     description TEXT,
     project TEXT,
     task TEXT,
     billable TEXT,  -- Will be text to accept 'WAHR'/'FALSCH'
+    tags TEXT,
     start_date TEXT,
     start_time TEXT,
     end_date TEXT,
     end_time TEXT,
     duration TEXT,
-    tags TEXT,
     amount TEXT,
     amount_decimal TEXT,
     amount_formatted TEXT,
@@ -122,6 +133,7 @@ CREATE TABLE rianthis_time_entries_staging (
     task_name TEXT,
     task_estimate_milliseconds TEXT,
     task_status TEXT,
+    checklists TEXT,
     user_period_time_spent TEXT,
     user_period_time_spent_text TEXT,
     date_created TEXT,
@@ -132,8 +144,61 @@ CREATE TABLE rianthis_time_entries_staging (
     phase_dep TEXT
 );
 
--- Import the CSV into the staging table
-\copy rianthis_time_entries_staging FROM '/import/rianthis_test_data.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
+-- Parse the CSV data into the structured table
+INSERT INTO rianthis_time_entries_staging_parsed
+SELECT 
+    split_part(line, ';', 1) AS id,
+    split_part(line, ';', 2) AS username,
+    split_part(line, ';', 3) AS description,
+    split_part(line, ';', 4) AS project,
+    split_part(line, ';', 5) AS task,
+    split_part(line, ';', 6) AS billable,
+    split_part(line, ';', 7) AS tags,
+    split_part(line, ';', 8) AS start_date,
+    split_part(line, ';', 9) AS start_time,
+    split_part(line, ';', 10) AS end_date,
+    split_part(line, ';', 11) AS end_time,
+    split_part(line, ';', 12) AS duration,
+    split_part(line, ';', 13) AS amount,
+    split_part(line, ';', 14) AS amount_decimal,
+    split_part(line, ';', 15) AS amount_formatted,
+    split_part(line, ';', 16) AS rate_amount,
+    split_part(line, ';', 17) AS rate_currency_code,
+    split_part(line, ';', 18) AS rate_amount_decimal,
+    split_part(line, ';', 19) AS rate_amount_formatted,
+    split_part(line, ';', 20) AS notes,
+    split_part(line, ';', 21) AS is_locked,
+    split_part(line, ';', 22) AS is_billed,
+    split_part(line, ';', 23) AS is_approved,
+    split_part(line, ';', 24) AS in_invoice,
+    split_part(line, ';', 25) AS user_id,
+    split_part(line, ';', 26) AS user_name,
+    split_part(line, ';', 27) AS user_email,
+    split_part(line, ';', 28) AS project_id,
+    split_part(line, ';', 29) AS project_name,
+    split_part(line, ';', 30) AS project_color,
+    split_part(line, ';', 31) AS project_note,
+    split_part(line, ';', 32) AS client_id,
+    split_part(line, ';', 33) AS client_name,
+    split_part(line, ';', 34) AS client_display_name,
+    split_part(line, ';', 35) AS task_id,
+    split_part(line, ';', 36) AS task_name,
+    split_part(line, ';', 37) AS task_estimate_milliseconds,
+    split_part(line, ';', 38) AS task_status,
+    split_part(line, ';', 39) AS checklists,
+    split_part(line, ';', 40) AS user_period_time_spent,
+    split_part(line, ';', 41) AS user_period_time_spent_text,
+    split_part(line, ';', 42) AS date_created,
+    split_part(line, ';', 43) AS date_created_text,
+    split_part(line, ';', 44) AS custom_task_id,
+    split_part(line, ';', 45) AS parent_task_id,
+    split_part(line, ';', 46) AS progress,
+    split_part(line, ';', 47) AS phase_dep
+FROM (
+    SELECT line 
+    FROM rianthis_time_entries_staging 
+    WHERE line NOT LIKE '%username;description;project%'  -- Skip header
+) t;
 
 -- Now insert into the actual table with proper type conversion
 INSERT INTO rianthis_time_entries_raw
@@ -151,7 +216,10 @@ SELECT
     start_time,
     end_date,
     end_time,
-    duration::bigint,
+    CASE 
+        WHEN duration ~ '^[0-9]+$' THEN duration::bigint 
+        ELSE NULL 
+    END AS duration,
     tags,
     amount,
     amount_decimal,
@@ -179,18 +247,29 @@ SELECT
     task_name,
     task_estimate_milliseconds,
     task_status,
-    user_period_time_spent::bigint,
+    checklists,
+    CASE 
+        WHEN user_period_time_spent ~ '^[0-9]+$' THEN user_period_time_spent::bigint 
+        ELSE NULL 
+    END AS user_period_time_spent,
     user_period_time_spent_text,
-    date_created::bigint,
+    CASE 
+        WHEN date_created ~ '^[0-9]+$' THEN date_created::bigint 
+        ELSE NULL 
+    END AS date_created,
     date_created_text,
     custom_task_id,
     parent_task_id,
-    progress::integer,
+    CASE 
+        WHEN progress ~ '^[0-9]+$' THEN progress::integer 
+        ELSE NULL 
+    END AS progress,
     phase_dep
-FROM rianthis_time_entries_staging;
+FROM rianthis_time_entries_staging_parsed;
 
--- Drop the staging table
+-- Drop the staging tables
 DROP TABLE rianthis_time_entries_staging;
+DROP TABLE rianthis_time_entries_staging_parsed;
 
 -- Import rianthis_team_mapping.csv
 \copy rianthis_team_mapping FROM '/import/rianthis_team_mapping.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
