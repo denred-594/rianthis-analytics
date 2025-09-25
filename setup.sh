@@ -135,10 +135,21 @@ for file in "rianthis_test_data.csv" "rianthis_team_mapping.csv" "Contract_Info.
     fi
 done
 
-# 4) Execute SQL script
-info "Executing SQL script..."
-if ! docker exec -i "${CONTAINER_DB}" psql -U "${DB_USER}" -d "${DB_NAME}" -f "${TEMP_DIR}/setup_full.sql"; then
-    error_exit "SQL import failed! Check the logs above for details."
+# 4) Execute SQL script with detailed error handling
+info "Executing SQL script with detailed logging..."
+
+# First, create a log file in the container
+LOG_FILE="${TEMP_DIR}/sql_import.log"
+
+# Execute SQL with detailed error output
+if ! docker exec -i "${CONTAINER_DB}" bash -c "set -o pipefail && psql -v ON_ERROR_STOP=1 -U \"${DB_USER}\" -d \"${DB_NAME}\" -f \"${TEMP_DIR}/setup_full.sql\" 2>&1 | tee \"${LOG_FILE}\""; then
+    # If SQL execution failed, show the error log
+    error_exit "SQL import failed! Showing error log...\n$(docker exec ${CONTAINER_DB} cat "${LOG_FILE}" 2>/dev/null || echo 'Could not retrieve error log')"
+fi
+
+# Verify the SQL executed successfully by checking for common error patterns
+if docker exec "${CONTAINER_DB}" grep -q -E 'ERROR|FATAL' "${LOG_FILE}" 2>/dev/null; then
+    error_exit "SQL import completed with errors:\n$(docker exec ${CONTAINER_DB} grep -E 'ERROR|FATAL' "${LOG_FILE}" 2>/dev/null || echo 'No detailed error messages found')"
 fi
 
 # Clean up temporary files
