@@ -201,69 +201,65 @@ FROM (
 ) t;
 
 -- Now insert into the actual table with proper type conversion
-INSERT INTO rianthis_time_entries_raw
+INSERT INTO rianthis_time_entries_raw (
+    user_id, username, description, billable, time_labels, 
+    start, start_text, stop, stop_text, time_tracked, 
+    time_tracked_text, space_id, space_name, folder_id, folder_name, 
+    list_id, list_name, task_id, task_name, task_status, 
+    due_date, due_date_text, start_date, start_date_text, task_time_estimated, 
+    task_time_estimated_text, task_time_spent, task_time_spent_text, 
+    user_total_time_estimated, user_total_time_estimated_text, 
+    user_total_time_tracked, user_total_time_tracked_text, tags,
+    checklists, user_period_time_spent, user_period_time_spent_text,
+    date_created, date_created_text, custom_task_id, parent_task_id,
+    progress, phase_dep
+)
 SELECT 
+    CASE WHEN user_id ~ '^[0-9]+$' THEN user_id::bigint ELSE NULL END,
     username,
     description,
-    project,
-    task,
     CASE 
         WHEN billable = 'WAHR' THEN true
         WHEN billable = 'FALSCH' THEN false
         ELSE NULL
     END AS billable,
-    start_date,
-    start_time,
-    end_date,
-    end_time,
-    CASE 
-        WHEN duration ~ '^[0-9]+$' THEN duration::bigint 
-        ELSE NULL 
-    END AS duration,
-    tags,
-    amount,
-    amount_decimal,
-    amount_formatted,
-    rate_amount,
-    rate_currency_code,
-    rate_amount_decimal,
-    rate_amount_formatted,
-    notes,
-    is_locked = 'WAHR',
-    is_billed = 'WAHR',
-    is_approved = 'WAHR',
-    in_invoice = 'WAHR',
-    user_id,
-    user_name,
-    user_email,
-    project_id,
-    project_name,
-    project_color,
-    project_note,
-    client_id,
-    client_name,
-    client_display_name,
+    NULL, -- time_labels
+    NULL, -- start
+    NULL, -- start_text
+    NULL, -- stop
+    NULL, -- stop_text
+    CASE WHEN duration ~ '^[0-9]+$' THEN duration::bigint ELSE NULL END, -- time_tracked
+    NULL, -- time_tracked_text
+    NULL, -- space_id
+    NULL, -- space_name
+    NULL, -- folder_id
+    NULL, -- folder_name
+    NULL, -- list_id
+    list_name,
     task_id,
     task_name,
-    task_estimate_milliseconds,
     task_status,
+    NULL, -- due_date
+    NULL, -- due_date_text
+    CASE WHEN start_date ~ '^[0-9]+$' THEN start_date::bigint ELSE NULL END, -- start_date
+    NULL, -- start_date_text
+    CASE WHEN task_estimate_milliseconds ~ '^[0-9]+$' THEN task_estimate_milliseconds::bigint ELSE NULL END, -- task_time_estimated
+    NULL, -- task_time_estimated_text
+    NULL, -- task_time_spent
+    NULL, -- task_time_spent_text
+    NULL, -- user_total_time_estimated
+    NULL, -- user_total_time_estimated_text
+    NULL, -- user_total_time_tracked
+    NULL, -- user_total_time_tracked_text
+    tags,
     checklists,
-    CASE 
-        WHEN user_period_time_spent ~ '^[0-9]+$' THEN user_period_time_spent::bigint 
-        ELSE NULL 
-    END AS user_period_time_spent,
+    CASE WHEN user_period_time_spent ~ '^[0-9]+$' THEN user_period_time_spent::bigint ELSE NULL END,
     user_period_time_spent_text,
-    CASE 
-        WHEN date_created ~ '^[0-9]+$' THEN date_created::bigint 
-        ELSE NULL 
-    END AS date_created,
+    CASE WHEN date_created ~ '^[0-9]+$' THEN date_created::bigint ELSE NULL END,
     date_created_text,
     custom_task_id,
     parent_task_id,
-    CASE 
-        WHEN progress ~ '^[0-9]+$' THEN progress::integer 
-        ELSE NULL 
-    END AS progress,
+    CASE WHEN progress ~ '^[0-9]+$' THEN progress::integer ELSE NULL END,
     phase_dep
 FROM rianthis_time_entries_staging_parsed;
 
