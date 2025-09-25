@@ -11,7 +11,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Configuration - can be overridden by environment variables
 : "${CONTAINER_DB:=metabase_db}"
 : "${DB_USER:=metabase}"
-: "${DB_NAME:=postgres}"
+: "${DB_PASSWORD:=metabase}"
+: "${DB_NAME:=metabase}"
 : "${DOCKER_COMPOSE_CMD:=$(command -v docker-compose || echo "docker compose")}"
 
 # Required files
@@ -48,6 +49,26 @@ if ! docker info >/dev/null 2>&1; then
   error_exit "Docker daemon is not running. Please start Docker and try again."
 fi
 
+# Function to wait for database to be ready
+wait_for_db() {
+    echo -e "${YELLOW}Waiting for database to be ready...${NC}"
+    local timeout=60
+    local start_time=$(date +%s)
+    
+    while ! docker exec -i "${CONTAINER_DB}" pg_isready -U "${DB_USER}" -d "${DB_NAME}" >/dev/null 2>&1; do
+        local current_time=$(date +%s)
+        local elapsed_time=$((current_time - start_time))
+        
+        if [ $elapsed_time -ge $timeout ]; then
+            error_exit "Timeout waiting for database to be ready"
+        fi
+        
+        echo -n "."
+        sleep 2
+    done
+    echo -e "\n${GREEN}Database is ready!${NC}"
+}
+
 # Check for required files
 MISSING_FILES=()
 for file in "${REQUIRED_FILES[@]}"; do
@@ -66,13 +87,16 @@ fi
 
 echo -e "${GREEN}Starting setup...${NC}"
 
-# 1) Copy CSV files to Docker container
+# 1) Wait for database to be ready
+wait_for_db
+
+# 2) Copy CSV files to Docker container
 echo -e "${YELLOW}Copying CSV files to container...${NC}"
 docker cp "${SCRIPT_DIR}/rianthis_test_data.csv" "${CONTAINER_DB}:/rianthis_test_data.csv" || error_exit "Failed to copy rianthis_test_data.csv"
 docker cp "${SCRIPT_DIR}/rianthis_team_mapping.csv" "${CONTAINER_DB}:/rianthis_team_mapping.csv" || error_exit "Failed to copy rianthis_team_mapping.csv"
 docker cp "${SCRIPT_DIR}/Contract_Info.csv" "${CONTAINER_DB}:/Contract_Info.csv" || error_exit "Failed to copy Contract_Info.csv"
 
-# 2) Copy and execute SQL script
+# 3) Copy and execute SQL script
 echo -e "${YELLOW}Copying and executing SQL script...${NC}"
 docker cp "${SCRIPT_DIR}/setup_full.sql" "${CONTAINER_DB}:/setup_full.sql" || error_exit "Failed to copy setup_full.sql"
 
