@@ -62,7 +62,7 @@ CREATE TABLE rianthis_time_entries_raw (
 );
 
 -- 2. CSV importieren
-COPY rianthis_time_entries_raw FROM '/rianthis_test_data.csv' DELIMITER ',' CSV HEADER;
+COPY rianthis_time_entries_raw FROM '/rianthis_test_data.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"', ESCAPE '\');
 
 -- 3. Processed-Tabelle erstellen
 DROP TABLE IF EXISTS rianthis_time_entries_processed;
@@ -98,8 +98,8 @@ CREATE TABLE rianthis_team_mapping (
     monatsstunden INT
 );
 
--- 5. CSV importieren
-COPY rianthis_team_mapping FROM '/rianthis_team_mapping.csv' DELIMITER ',' CSV HEADER;
+-- 5. Team-Mapping importieren
+COPY rianthis_team_mapping FROM '/rianthis_team_mapping.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"', ESCAPE '\\');
 
 -- 6. Role nachträglich aktualisieren
 ALTER TABLE rianthis_time_entries_processed
@@ -130,7 +130,7 @@ CREATE TEMP TABLE contract_info_raw (
     vertragsstunden TEXT
 );
 
-COPY contract_info_raw FROM '/Contract_Info.csv' DELIMITER ',' CSV HEADER;
+COPY contract_info_raw FROM '/Contract_Info.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"', ESCAPE '\\');
 
 INSERT INTO contract_info(list_name, customer_type, angebot_h_hours, vertragsbegin, vertragsstunden_hours)
 SELECT
