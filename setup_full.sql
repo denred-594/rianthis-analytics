@@ -65,22 +65,20 @@ CREATE TABLE rianthis_time_entries_raw (
     phase_dep TEXT
 );
 
--- 2. Create a function to import CSV files
-CREATE OR REPLACE FUNCTION import_csv_file(table_name text, file_name text) RETURNS void AS $$
-BEGIN
-    EXECUTE format('COPY %I FROM %L WITH (FORMAT csv, DELIMITER '';'', HEADER true, QUOTE ''"'', ESCAPE ''\\'')', 
-                  table_name, 
-                  file_name);
-END;
-$$ LANGUAGE plpgsql;
+-- 2. Import CSV files directly with proper escaping
+\set csv_file_1 :import_dir'/rianthis_test_data.csv'
+\set csv_file_2 :import_dir'/rianthis_team_mapping.csv'
+\set csv_file_3 :import_dir'/Contract_Info.csv'
 
--- 3. Import CSV files using the function
-SELECT import_csv_file('rianthis_time_entries_raw', :'import_dir' || '/rianthis_test_data.csv');
-SELECT import_csv_file('rianthis_team_mapping', :'import_dir' || '/rianthis_team_mapping.csv');
-SELECT import_csv_file('contract_info_raw', :'import_dir' || '/Contract_Info.csv');
+-- 3. Import each CSV file with explicit COPY commands
+\echo 'Importing file: ' :csv_file_1
+\copy rianthis_time_entries_raw FROM :'csv_file_1' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
 
--- Drop the helper function after use
-DROP FUNCTION import_csv_file(text, text);
+\echo 'Importing file: ' :csv_file_2
+\copy rianthis_team_mapping FROM :'csv_file_2' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
+
+\echo 'Importing file: ' :csv_file_3
+\copy contract_info_raw FROM :'csv_file_3' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
 
 -- 3. Processed-Tabelle erstellen
 DROP TABLE IF EXISTS rianthis_time_entries_processed;
