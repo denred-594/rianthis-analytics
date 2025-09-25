@@ -79,15 +79,17 @@ CREATE TABLE rianthis_time_entries_raw (
     phase_dep TEXT
 );
 
--- 2. Import CSV files using the provided paths
-\echo 'Importing rianthis_test_data.csv from __CSV1_PATH__'
-\copy rianthis_time_entries_raw FROM '__CSV1_PATH__' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
+-- 2. Import CSV files using direct paths
+\echo 'Importing CSV files...'
 
-\echo 'Importing rianthis_team_mapping.csv from __CSV2_PATH__'
-\copy rianthis_team_mapping FROM '__CSV2_PATH__' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
+-- Import rianthis_test_data.csv
+\copy rianthis_time_entries_raw FROM '/app/rianthis_test_data.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
 
-\echo 'Importing Contract_Info.csv from __CSV3_PATH__'
-\copy contract_info_raw FROM '__CSV3_PATH__' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
+-- Import rianthis_team_mapping.csv
+\copy rianthis_team_mapping FROM '/app/rianthis_team_mapping.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
+
+-- Import Contract_Info.csv
+\copy contract_info_raw FROM '/app/Contract_Info.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
 
 -- 3. Processed-Tabelle erstellen
 DROP TABLE IF EXISTS rianthis_time_entries_processed;
