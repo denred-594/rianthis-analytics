@@ -118,28 +118,43 @@ CREATE TABLE rianthis_time_entries_raw_text (
 
 -- 4. Convert the text data to the final table with proper types
 -- First, create a function to convert scientific notation with comma to numeric
-CREATE OR REPLACE FUNCTION convert_scientific(text) RETURNS NUMERIC AS $$
+CREATE OR REPLACE FUNCTION convert_scientific(text) RETURNS TEXT AS $$
 DECLARE
-    result NUMERIC;
+    num_text TEXT;
+    base_part TEXT;
+    exp_part TEXT;
+    base_num NUMERIC;
+    exp_num INTEGER;
+    result TEXT;
 BEGIN
     -- Handle empty strings
     IF $1 IS NULL OR $1 = '' THEN
         RETURN NULL;
     END IF;
     
-    -- Replace comma with dot for decimal separator
-    -- and convert to numeric
-    BEGIN
-        RETURN (REPLACE($1, ',', '.')::NUMERIC);
-    EXCEPTION WHEN OTHERS THEN
-        -- If conversion fails, try to handle scientific notation
-        IF $1 ~* '^[0-9,]+[eE][+-]?[0-9]+$' THEN
-            RETURN (REPLACE(SPLIT_PART($1, 'E', 1), ',', '.')::NUMERIC * 
-                   (10 ^ SPLIT_PART($1, 'E', 2)::INTEGER));
-        ELSE
-            RAISE;
-        END IF;
-    END;
+    -- Remove any whitespace
+    num_text := TRIM($1);
+    
+    -- Check if it's in scientific notation with comma
+    IF num_text ~* '^[0-9,]+[eE][+-]?[0-9]+$' THEN
+        -- Split into base and exponent
+        base_part := SPLIT_PART(UPPER(num_text), 'E', 1);
+        exp_part := SPLIT_PART(UPPER(num_text), 'E', 2);
+        
+        -- Replace comma with dot and convert to numeric
+        base_num := REPLACE(base_part, ',', '.')::NUMERIC;
+        exp_num := exp_part::INTEGER;
+        
+        -- Calculate the result and convert to string without scientific notation
+        result := (base_num * (10^exp_num))::TEXT;
+        RETURN SPLIT_PART(result, '.', 1); -- Return only integer part
+    ELSE
+        -- If not scientific notation, just replace comma with dot and return as text
+        RETURN SPLIT_PART(REPLACE(num_text, ',', '.'), '.', 1);
+    END IF;
+EXCEPTION WHEN OTHERS THEN
+    -- If any error occurs, return NULL
+    RETURN NULL;
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
