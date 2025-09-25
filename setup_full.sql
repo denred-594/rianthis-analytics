@@ -79,11 +79,118 @@ CREATE TABLE rianthis_time_entries_raw (
     phase_dep TEXT
 );
 
--- 2. Import CSV files using direct paths
+-- 2. Import CSV files using direct paths with proper type handling
 \echo 'Importing CSV files...'
 
--- Import rianthis_test_data.csv
-\copy rianthis_time_entries_raw FROM '/import/rianthis_test_data.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
+-- Create a staging table with text columns to import the raw data
+DROP TABLE IF EXISTS rianthis_time_entries_staging;
+CREATE TABLE rianthis_time_entries_staging (
+    username TEXT,
+    description TEXT,
+    project TEXT,
+    task TEXT,
+    billable TEXT,  -- Will be text to accept 'WAHR'/'FALSCH'
+    start_date TEXT,
+    start_time TEXT,
+    end_date TEXT,
+    end_time TEXT,
+    duration TEXT,
+    tags TEXT,
+    amount TEXT,
+    amount_decimal TEXT,
+    amount_formatted TEXT,
+    rate_amount TEXT,
+    rate_currency_code TEXT,
+    rate_amount_decimal TEXT,
+    rate_amount_formatted TEXT,
+    notes TEXT,
+    is_locked TEXT,
+    is_billed TEXT,
+    is_approved TEXT,
+    in_invoice TEXT,
+    user_id TEXT,
+    user_name TEXT,
+    user_email TEXT,
+    project_id TEXT,
+    project_name TEXT,
+    project_color TEXT,
+    project_note TEXT,
+    client_id TEXT,
+    client_name TEXT,
+    client_display_name TEXT,
+    task_id TEXT,
+    task_name TEXT,
+    task_estimate_milliseconds TEXT,
+    task_status TEXT,
+    user_period_time_spent TEXT,
+    user_period_time_spent_text TEXT,
+    date_created TEXT,
+    date_created_text TEXT,
+    custom_task_id TEXT,
+    parent_task_id TEXT,
+    progress TEXT,
+    phase_dep TEXT
+);
+
+-- Import the CSV into the staging table
+\copy rianthis_time_entries_staging FROM '/import/rianthis_test_data.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
+
+-- Now insert into the actual table with proper type conversion
+INSERT INTO rianthis_time_entries_raw
+SELECT 
+    username,
+    description,
+    project,
+    task,
+    CASE 
+        WHEN billable = 'WAHR' THEN true
+        WHEN billable = 'FALSCH' THEN false
+        ELSE NULL
+    END AS billable,
+    start_date,
+    start_time,
+    end_date,
+    end_time,
+    duration::bigint,
+    tags,
+    amount,
+    amount_decimal,
+    amount_formatted,
+    rate_amount,
+    rate_currency_code,
+    rate_amount_decimal,
+    rate_amount_formatted,
+    notes,
+    is_locked = 'WAHR',
+    is_billed = 'WAHR',
+    is_approved = 'WAHR',
+    in_invoice = 'WAHR',
+    user_id,
+    user_name,
+    user_email,
+    project_id,
+    project_name,
+    project_color,
+    project_note,
+    client_id,
+    client_name,
+    client_display_name,
+    task_id,
+    task_name,
+    task_estimate_milliseconds,
+    task_status,
+    user_period_time_spent::bigint,
+    user_period_time_spent_text,
+    date_created::bigint,
+    date_created_text,
+    custom_task_id,
+    parent_task_id,
+    progress::integer,
+    phase_dep
+FROM rianthis_time_entries_staging;
+
+-- Drop the staging table
+DROP TABLE rianthis_time_entries_staging;
 
 -- Import rianthis_team_mapping.csv
 \copy rianthis_team_mapping FROM '/import/rianthis_team_mapping.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
