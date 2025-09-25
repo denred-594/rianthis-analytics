@@ -293,7 +293,7 @@ CREATE TABLE contract_info_raw (
 -- Import Contract_Info.csv
 \copy contract_info_raw FROM '/import/Contract_Info.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
 
--- 3. Processed-Tabelle erstellen
+-- 3. Create processed time entries table
 DROP TABLE IF EXISTS rianthis_time_entries_processed;
 
 CREATE TABLE rianthis_time_entries_processed AS
@@ -318,7 +318,7 @@ FROM rianthis_time_entries_raw;
 CREATE INDEX IF NOT EXISTS idx_time_entries_user_start
 ON rianthis_time_entries_processed(username, start_timestamp);
 
--- 6. Process contract info
+-- 7. Process contract info
 DROP TABLE IF EXISTS contract_info;
 
 CREATE TABLE contract_info AS
@@ -329,6 +329,9 @@ SELECT
     vertragsbegin,
     vertragsstunden
 FROM contract_info_raw;
+
+-- 8. Clean up temporary tables
+DROP TABLE IF EXISTS contract_info_raw;
 
 -- 7. Role nachträglich aktualisieren
 ALTER TABLE rianthis_time_entries_processed
@@ -359,7 +362,7 @@ CREATE TEMP TABLE contract_info_raw (
     vertragsstunden TEXT
 );
 
-COPY contract_info_raw FROM 'Contract_Info.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"', ESCAPE '\\');
+COPY contract_info_raw FROM 'Contract_Info.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
 
 INSERT INTO contract_info(list_name, customer_type, angebot_h_hours, vertragsbegin, vertragsstunden_hours)
 SELECT
