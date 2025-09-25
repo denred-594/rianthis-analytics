@@ -148,19 +148,13 @@ fi
 info "Executing SQL script with detailed logging..."
 
 # Create a log file in the container
-LOG_FILE="${TEMP_DIR}/sql_import.log"
+LOG_FILE="/tmp/sql_import.log"
 
-# Execute SQL with the import directory set
+# Execute the SQL script
 if ! docker exec -i "${CONTAINER_DB}" bash -c "
-    set -o pipefail && 
-    export PGPASSWORD='${DB_PASSWORD}' && 
-    psql \
-      -v ON_ERROR_STOP=1 \
-      -v IMPORT_DIR='${TEMP_DIR}' \
-      -U "${DB_USER}" \
-      -d "${DB_NAME}" \
-      -f "${TEMP_DIR}/setup_full.sql" \
-      2>&1 | tee "${LOG_FILE}"
+    set -o pipefail
+    export PGPASSWORD='${DB_PASSWORD}'
+    psql -v ON_ERROR_STOP=1 -U "${DB_USER}" -d "${DB_NAME}" -f "/tmp/setup_full.sql" 2>&1 | tee "${LOG_FILE}"
 "; then
     # If SQL execution failed, show the error log
     error_exit "SQL import failed! Showing error log...\n$(docker exec ${CONTAINER_DB} cat "${LOG_FILE}" 2>/dev/null || echo 'Could not retrieve error log')"
