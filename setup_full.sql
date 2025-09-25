@@ -267,10 +267,19 @@ FROM rianthis_time_entries_staging_parsed;
 DROP TABLE rianthis_time_entries_staging;
 DROP TABLE rianthis_time_entries_staging_parsed;
 
+-- 3. Create and populate rianthis_team_mapping table
+DROP TABLE IF EXISTS rianthis_team_mapping;
+
+CREATE TABLE rianthis_team_mapping (
+    username TEXT PRIMARY KEY,
+    role TEXT,
+    monatsstunden INT
+);
+
 -- Import rianthis_team_mapping.csv
 \copy rianthis_team_mapping FROM '/import/rianthis_team_mapping.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
 
--- Import Contract_Info.csv
+-- 4. Import Contract_Info.csv
 \copy contract_info_raw FROM '/import/Contract_Info.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
 
 -- 3. Processed-Tabelle erstellen
@@ -297,18 +306,6 @@ FROM rianthis_time_entries_raw;
 -- Optional: Index für schnellere Auswertungen
 CREATE INDEX IF NOT EXISTS idx_time_entries_user_start
 ON rianthis_time_entries_processed(username, start_timestamp);
-
--- 4. Team-Tabelle erstellen
-DROP TABLE IF EXISTS rianthis_team_mapping;
-
-CREATE TABLE rianthis_team_mapping (
-    username TEXT PRIMARY KEY,
-    role TEXT,
-    monatsstunden INT
-);
-
--- 5. Team-Mapping importieren
-COPY rianthis_team_mapping FROM 'rianthis_team_mapping.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"', ESCAPE '\\');
 
 -- 6. Role nachträglich aktualisieren
 ALTER TABLE rianthis_time_entries_processed
