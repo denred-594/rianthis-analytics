@@ -143,22 +143,22 @@ info "Preparing SQL script with file paths..."
 TEMP_SQL="${SCRIPT_DIR}/setup_with_paths.sql"
 
 # Create the SQL file with proper paths
-cat > "${TEMP_SQL}" << EOF
+cat > "${TEMP_SQL}" << 'EOF'
 -- This is a temporary SQL file with replaced file paths
 -- Schema creation part (without any file operations)
 $(grep -v '^\\' "${SCRIPT_DIR}/setup_full.sql")
 
 -- Data import part with actual file paths
-\\echo 'Importing CSV files...'
+\echo 'Importing CSV files...'
 
 -- Import rianthis_test_data.csv
-\\copy rianthis_time_entries_raw FROM '${WORK_DIR}/rianthis_test_data.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '\''"'\'');
+\copy rianthis_time_entries_raw FROM '/app/rianthis_test_data.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
 
 -- Import rianthis_team_mapping.csv
-\\copy rianthis_team_mapping FROM '${WORK_DIR}/rianthis_team_mapping.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '\''"'\'');
+\copy rianthis_team_mapping FROM '/app/rianthis_team_mapping.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
 
 -- Import Contract_Info.csv
-\\copy contract_info_raw FROM '${WORK_DIR}/Contract_Info.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '\''"'\'');
+\copy contract_info_raw FROM '/app/Contract_Info.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
 EOF
 
 # Copy the generated SQL file to the container
