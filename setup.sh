@@ -14,6 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${DB_PASSWORD:=metabase}"
 : "${DB_NAME:=metabase}"
 : "${DOCKER_COMPOSE_CMD:=$(command -v docker-compose || echo "docker compose")}"
+: "${TEMP_DIR:=/tmp/rianthis_setup}"
 
 # Required files
 REQUIRED_FILES=(
@@ -120,41 +121,72 @@ wait_for_db
 # 3) Copy files to container
 info "Copying required files to container..."
 
-# Create a consistent import directory in the container
-IMPORT_DIR="/import"
-docker exec ${CONTAINER_DB} mkdir -p ${IMPORT_DIR} || error_exit "Failed to create import directory in container"
+# Create a working directory in the container
+WORK_DIR="/app"
+docker exec ${CONTAINER_DB} mkdir -p ${WORK_DIR} || error_exit "Failed to create working directory in container"
 
-# Copy files to the container
-for file in "rianthis_test_data.csv" "rianthis_team_mapping.csv" "Contract_Info.csv"; do
+# Copy all required files to the working directory
+for file in "rianthis_test_data.csv" "rianthis_team_mapping.csv" "Contract_Info.csv" "setup_full.sql"; do
     info "Copying ${file} to container..."
-    docker cp "${SCRIPT_DIR}/${file}" "${CONTAINER_DB}:${IMPORT_DIR}/${file}" || error_exit "Failed to copy ${file}"
+    docker cp "${SCRIPT_DIR}/${file}" "${CONTAINER_DB}:${WORK_DIR}/${file}" || error_exit "Failed to copy ${file}"
     
     # Verify the file was copied
-    if ! docker exec ${CONTAINER_DB} test -f "${IMPORT_DIR}/${file}"; then
+    if ! docker exec ${CONTAINER_DB} test -f "${WORK_DIR}/${file}"; then
         error_exit "Failed to verify ${file} was copied to container"
     fi
 done
 
-# Copy the SQL file to a standard location
-SQL_PATH="/tmp/setup_full.sql"
-docker cp "${SCRIPT_DIR}/setup_full.sql" "${CONTAINER_DB}:${SQL_PATH}" || error_exit "Failed to copy setup_full.sql"
+# 4) Create a temporary SQL file with the actual file paths
+TEMP_SQL="${WORK_DIR}/setup_temp.psql"
 
-# Verify the SQL file was copied
-if ! docker exec ${CONTAINER_DB} test -f "${SQL_PATH}"; then
-    error_exit "Failed to verify setup_full.sql was copied to container"
+# Create a temporary SQL file with the actual file paths
+info "Preparing SQL script with file paths..."
+if ! docker exec -i "${CONTAINER_DB}" bash -c "
+    set -o pipefail
+    cd ${WORK_DIR}
+    
+    # Create a temporary SQL file with the actual file paths
+    cat > ${TEMP_SQL} << 'EOF'
+-- This is a temporary SQL file with replaced file paths
+-- Schema creation part (without any file operations)
+$(grep -v '^\\' setup_full.sql)
+
+-- Data import part with actual file paths
+\\echo 'Importing CSV files...'
+
+-- Import rianthis_test_data.csv
+\\copy rianthis_time_entries_raw FROM '${WORK_DIR}/rianthis_test_data.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
+
+-- Import rianthis_team_mapping.csv
+\\copy rianthis_team_mapping FROM '${WORK_DIR}/rianthis_team_mapping.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
+
+-- Import Contract_Info.csv
+\\copy contract_info_raw FROM '${WORK_DIR}/Contract_Info.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
+EOF
+"; then
+    error_exit "Failed to prepare SQL script with file paths"
 fi
 
-# 4) Execute SQL script with detailed error handling
+# 5) Execute the SQL script with detailed error handling
 info "Executing SQL script with detailed logging..."
 
 # Create a log file in the container
-LOG_FILE="/tmp/sql_import.log"
+LOG_FILE="${WORK_DIR}/sql_import.log"
 
 # Execute the SQL script
 if ! docker exec -i "${CONTAINER_DB}" bash -c "
     set -o pipefail
+    cd ${WORK_DIR}
     export PGPASSWORD='${DB_PASSWORD}'
-    psql -v ON_ERROR_STOP=1 -U "${DB_USER}" -d "${DB_NAME}" -f "/tmp/setup_full.sql" 2>&1 | tee "${LOG_FILE}"
+    
+    # First, execute the schema part
+    grep -v '^\\' ${TEMP_SQL} > schema_part.sql
+    psql -v ON_ERROR_STOP=1 -U "${DB_USER}" -d "${DB_NAME}" -f schema_part.sql
+    
+    # Then execute the import part
+    grep '^\\' ${TEMP_SQL} > import_part.psql
+    psql -v ON_ERROR_STOP=1 -U "${DB_USER}" -d "${DB_NAME}" -f import_part.psql
+" 2>&1 | tee "${LOG_FILE}"
 "; then
     # If SQL execution failed, show the error log
     error_exit "SQL import failed! Showing error log...\n$(docker exec ${CONTAINER_DB} cat "${LOG_FILE}" 2>/dev/null || echo 'Could not retrieve error log')"
