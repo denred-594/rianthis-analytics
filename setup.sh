@@ -149,14 +149,37 @@ grep -v '^\\' "${SCRIPT_DIR}/setup_full.sql" > "${TEMP_SQL}.schema"
 echo "-- Data import part with actual file paths" > "${TEMP_SQL}.data"
 echo "\\echo 'Importing CSV files...'" >> "${TEMP_SQL}.data"
 echo "" >> "${TEMP_SQL}.data"
-echo "-- Import rianthis_test_data.csv" >> "${TEMP_SQL}.data"
-echo "\\copy rianthis_time_entries_raw FROM '/app/rianthis_test_data.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '\"');" >> "${TEMP_SQL}.data"
+
+# Create a temporary table for time entries with text columns to handle German booleans
+echo "-- Create temporary table for time entries" >> "${TEMP_SQL}.data"
+echo "CREATE TEMP TABLE temp_time_entries (" >> "${TEMP_SQL}.data"
+echo "    id TEXT, user_id TEXT, project_id TEXT, task_id TEXT, billable TEXT, start TEXT, stop TEXT, description TEXT," >> "${TEMP_SQL}.data"
+echo "    created_at TEXT, updated_at TEXT, user_name TEXT, project_name TEXT, client_name TEXT" >> "${TEMP_SQL}.data"
+echo ") ON COMMIT DROP;" >> "${TEMP_SQL}.data"
 echo "" >> "${TEMP_SQL}.data"
+
+# Import into temporary table first
+echo "-- Import rianthis_test_data.csv into temporary table" >> "${TEMP_SQL}.data"
+echo "\\copy temp_time_entries FROM '/app/rianthis_test_data.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '\"', NULL '');" >> "${TEMP_SQL}.data"
+echo "" >> "${TEMP_SQL}.data"
+
+# Transform and insert into the actual table
+echo "-- Transform and insert data into the actual table" >> "${TEMP_SQL}.data"
+echo "INSERT INTO rianthis_time_entries_raw" >> "${TEMP_SQL}.data"
+echo "SELECT" >> "${TEMP_SQL}.data"
+echo "    id, user_id, project_id, task_id," >> "${TEMP_SQL}.data"
+echo "    CASE WHEN billable = 'WAHR' THEN true WHEN billable = 'FALSCH' THEN false ELSE NULL END as billable," >> "${TEMP_SQL}.data"
+echo "    start::timestamp, stop::timestamp, description, created_at::timestamp, updated_at::timestamp," >> "${TEMP_SQL}.data"
+echo "    user_name, project_name, client_name" >> "${TEMP_SQL}.data"
+echo "FROM temp_time_entries;" >> "${TEMP_SQL}.data"
+echo "" >> "${TEMP_SQL}.data"
+
+# Import other CSV files that don't have boolean values
 echo "-- Import rianthis_team_mapping.csv" >> "${TEMP_SQL}.data"
-echo "\\copy rianthis_team_mapping FROM '/app/rianthis_team_mapping.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '\"');" >> "${TEMP_SQL}.data"
+echo "\\copy rianthis_team_mapping FROM '/app/rianthis_team_mapping.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '\"', NULL '');" >> "${TEMP_SQL}.data"
 echo "" >> "${TEMP_SQL}.data"
 echo "-- Import Contract_Info.csv" >> "${TEMP_SQL}.data"
-echo "\\copy contract_info_raw FROM '/app/Contract_Info.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '\"');" >> "${TEMP_SQL}.data"
+echo "\\copy contract_info_raw FROM '/app/Contract_Info.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '\"', NULL '');" >> "${TEMP_SQL}.data"
 
 # Combine both parts
 cat "${TEMP_SQL}.schema" "${TEMP_SQL}.data" > "${TEMP_SQL}"
