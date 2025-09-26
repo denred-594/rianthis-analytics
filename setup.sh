@@ -142,24 +142,25 @@ info "Preparing SQL script with file paths..."
 # Create a temporary file locally
 TEMP_SQL="${SCRIPT_DIR}/setup_with_paths.sql"
 
-# Create the SQL file with proper paths
-cat > "${TEMP_SQL}" << 'EOF'
--- This is a temporary SQL file with replaced file paths
--- Schema creation part (without any file operations)
-$(grep -v '^\\' "${SCRIPT_DIR}/setup_full.sql")
+# Create the schema part (without any file operations)
+grep -v '^\\' "${SCRIPT_DIR}/setup_full.sql" > "${TEMP_SQL}.schema"
 
--- Data import part with actual file paths
-\echo 'Importing CSV files...'
+# Create the data import part
+echo "-- Data import part with actual file paths" > "${TEMP_SQL}.data"
+echo "\\echo 'Importing CSV files...'" >> "${TEMP_SQL}.data"
+echo "" >> "${TEMP_SQL}.data"
+echo "-- Import rianthis_test_data.csv" >> "${TEMP_SQL}.data"
+echo "\\copy rianthis_time_entries_raw FROM '/app/rianthis_test_data.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '\"');" >> "${TEMP_SQL}.data"
+echo "" >> "${TEMP_SQL}.data"
+echo "-- Import rianthis_team_mapping.csv" >> "${TEMP_SQL}.data"
+echo "\\copy rianthis_team_mapping FROM '/app/rianthis_team_mapping.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '\"');" >> "${TEMP_SQL}.data"
+echo "" >> "${TEMP_SQL}.data"
+echo "-- Import Contract_Info.csv" >> "${TEMP_SQL}.data"
+echo "\\copy contract_info_raw FROM '/app/Contract_Info.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '\"');" >> "${TEMP_SQL}.data"
 
--- Import rianthis_test_data.csv
-\copy rianthis_time_entries_raw FROM '/app/rianthis_test_data.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
-
--- Import rianthis_team_mapping.csv
-\copy rianthis_team_mapping FROM '/app/rianthis_team_mapping.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
-
--- Import Contract_Info.csv
-\copy contract_info_raw FROM '/app/Contract_Info.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
-EOF
+# Combine both parts
+cat "${TEMP_SQL}.schema" "${TEMP_SQL}.data" > "${TEMP_SQL}"
+rm -f "${TEMP_SQL}.schema" "${TEMP_SQL}.data"
 
 # Copy the generated SQL file to the container
 docker cp "${TEMP_SQL}" "${CONTAINER_DB}:${WORK_DIR}/setup_with_paths.sql"
