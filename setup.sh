@@ -138,32 +138,31 @@ done
 
 # 4) Prepare the SQL script with the correct file paths
 info "Preparing SQL script with file paths..."
-TEMP_SQL="${WORK_DIR}/setup_with_paths.sql"
 
-# First, copy the SQL file to the container
-docker cp "${SCRIPT_DIR}/setup_full.sql" "${CONTAINER_DB}:${WORK_DIR}/setup_full.sql"
+# Create a temporary file locally
+TEMP_SQL="${SCRIPT_DIR}/setup_with_paths.sql"
 
-# Create a new SQL file with the proper paths
-if ! docker exec -i "${CONTAINER_DB}" bash -c 'cat > '${TEMP_SQL}' << "EOF"
+# Create the SQL file with proper paths
+cat > "${TEMP_SQL}" << EOF
 -- This is a temporary SQL file with replaced file paths
 -- Schema creation part (without any file operations)
-$(grep -v "^\\\\" "${WORK_DIR}/setup_full.sql")
+$(grep -v '^\\' "${SCRIPT_DIR}/setup_full.sql")
 
 -- Data import part with actual file paths
-\\echo "Importing CSV files..."
+\\echo 'Importing CSV files...'
 
 -- Import rianthis_test_data.csv
-\\copy rianthis_time_entries_raw FROM '${WORK_DIR}/rianthis_test_data.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE ''"'');
+\\copy rianthis_time_entries_raw FROM '${WORK_DIR}/rianthis_test_data.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '\''"'\'');
 
 -- Import rianthis_team_mapping.csv
-\\copy rianthis_team_mapping FROM '${WORK_DIR}/rianthis_team_mapping.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE ''"'');
+\\copy rianthis_team_mapping FROM '${WORK_DIR}/rianthis_team_mapping.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '\''"'\'');
 
 -- Import Contract_Info.csv
-\\copy contract_info_raw FROM '${WORK_DIR}/Contract_Info.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE ''"'');
-EOF'
-"; then
-    error_exit "Failed to prepare SQL script with file paths"
-fi
+\\copy contract_info_raw FROM '${WORK_DIR}/Contract_Info.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '\''"'\'');
+EOF
+
+# Copy the generated SQL file to the container
+docker cp "${TEMP_SQL}" "${CONTAINER_DB}:${WORK_DIR}/setup_with_paths.sql"
 
 # 5) Execute the SQL script with detailed error handling
 info "Executing SQL script with detailed logging..."
@@ -171,20 +170,24 @@ info "Executing SQL script with detailed logging..."
 # Create a log file in the container
 LOG_FILE="${WORK_DIR}/sql_import.log"
 
-# Execute the SQL script
-if ! docker exec -i "${CONTAINER_DB}" bash -c "
-    set -o pipefail
-    cd ${WORK_DIR}
+# Execute the SQL script in the container
+if ! docker exec -i "${CONTAINER_DB}" bash -c '
+    set -euo pipefail
+    cd '${WORK_DIR}'
     export PGPASSWORD='${DB_PASSWORD}'
     
     # First, execute the schema part
-    grep -v '^\\' ${TEMP_SQL} > schema_part.sql
-    psql -v ON_ERROR_STOP=1 -U "${DB_USER}" -d "${DB_NAME}" -f schema_part.sql
+    grep -v "^\\\\" setup_with_paths.sql > schema_part.sql
+    psql -v ON_ERROR_STOP=1 -U '${DB_USER}' -d '${DB_NAME}' -f schema_part.sql
     
     # Then execute the import part
-    grep '^\\' ${TEMP_SQL} > import_part.psql
-    psql -v ON_ERROR_STOP=1 -U "${DB_USER}" -d "${DB_NAME}" -f import_part.psql
-" 2>&1 | tee "${LOG_FILE}"
+    grep "^\\\\" setup_with_paths.sql > import_part.psql
+    psql -v ON_ERROR_STOP=1 -U '${DB_USER}' -d '${DB_NAME}' -f import_part.psql
+' 2>&1 | tee "${LOG_FILE}'
+
+then
+    error_exit "SQL import failed! Showing error log...\n$(docker exec ${CONTAINER_DB} cat "${LOG_FILE}" 2>/dev/null || echo 'Could not retrieve error log')"
+fi
 "; then
     # If SQL execution failed, show the error log
     error_exit "SQL import failed! Showing error log...\n$(docker exec ${CONTAINER_DB} cat "${LOG_FILE}" 2>/dev/null || echo 'Could not retrieve error log')"
