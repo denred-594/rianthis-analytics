@@ -362,7 +362,8 @@ CREATE TEMP TABLE contract_info_raw (
     vertragsstunden TEXT
 );
 
-COPY contract_info_raw FROM 'Contract_Info.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
+-- Import using \copy with the correct container path
+\copy contract_info_raw FROM '/import/Contract_Info.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
 
 INSERT INTO contract_info(list_name, customer_type, angebot_h_hours, vertragsbegin, vertragsstunden_hours)
 SELECT
