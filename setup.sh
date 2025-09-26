@@ -136,33 +136,31 @@ for file in "rianthis_test_data.csv" "rianthis_team_mapping.csv" "Contract_Info.
     fi
 done
 
-# 4) Create a temporary SQL file with the actual file paths
-TEMP_SQL="${WORK_DIR}/setup_temp.psql"
-
-# Create a temporary SQL file with the actual file paths
+# 4) Prepare the SQL script with the correct file paths
 info "Preparing SQL script with file paths..."
-if ! docker exec -i "${CONTAINER_DB}" bash -c "
-    set -o pipefail
-    cd ${WORK_DIR}
-    
-    # Create a temporary SQL file with the actual file paths
-    cat > ${TEMP_SQL} << 'EOF'
+TEMP_SQL="${WORK_DIR}/setup_with_paths.sql"
+
+# First, copy the SQL file to the container
+docker cp "${SCRIPT_DIR}/setup_full.sql" "${CONTAINER_DB}:${WORK_DIR}/setup_full.sql"
+
+# Create a new SQL file with the proper paths
+if ! docker exec -i "${CONTAINER_DB}" bash -c 'cat > '${TEMP_SQL}' << "EOF"
 -- This is a temporary SQL file with replaced file paths
 -- Schema creation part (without any file operations)
-$(grep -v '^\\' setup_full.sql)
+$(grep -v "^\\\\" "${WORK_DIR}/setup_full.sql")
 
 -- Data import part with actual file paths
-\\echo 'Importing CSV files...'
+\\echo "Importing CSV files..."
 
 -- Import rianthis_test_data.csv
-\\copy rianthis_time_entries_raw FROM '${WORK_DIR}/rianthis_test_data.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
+\\copy rianthis_time_entries_raw FROM '${WORK_DIR}/rianthis_test_data.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE ''"'');
 
 -- Import rianthis_team_mapping.csv
-\\copy rianthis_team_mapping FROM '${WORK_DIR}/rianthis_team_mapping.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
+\\copy rianthis_team_mapping FROM '${WORK_DIR}/rianthis_team_mapping.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE ''"'');
 
 -- Import Contract_Info.csv
-\\copy contract_info_raw FROM '${WORK_DIR}/Contract_Info.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE '"');
-EOF
+\\copy contract_info_raw FROM '${WORK_DIR}/Contract_Info.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, QUOTE ''"'');
+EOF'
 "; then
     error_exit "Failed to prepare SQL script with file paths"
 fi
