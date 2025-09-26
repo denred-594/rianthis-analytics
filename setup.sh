@@ -194,18 +194,28 @@ info "Executing SQL script with detailed logging..."
 # Create a log file in the container
 LOG_FILE="${WORK_DIR}/sql_import.log"
 
-# Execute the SQL script in a single transaction
+# Execute the SQL script with proper transaction handling
 if ! docker exec -i "${CONTAINER_DB}" bash -c '
     set -euo pipefail
     cd '${WORK_DIR}'
     export PGPASSWORD='${DB_PASSWORD}'
     
-    # Start a transaction and execute everything in one go
+    # First, extract and execute DROP DATABASE commands separately
+    grep -i "^DROP DATABASE" setup_with_paths.sql > drop_db_commands.sql 2>/dev/null || true
+    if [ -s drop_db_commands.sql ]; then
+        echo "Executing DROP DATABASE commands..."
+        psql -v ON_ERROR_STOP=1 -U '${DB_USER}' -d postgres -f drop_db_commands.sql
+    fi
+    
+    # Then execute the rest in a transaction
+    grep -iv "^DROP DATABASE" setup_with_paths.sql > main_script.sql
+    
     echo "BEGIN;" > combined_script.sql
-    cat setup_with_paths.sql >> combined_script.sql
+    cat main_script.sql >> combined_script.sql
     echo "COMMIT;" >> combined_script.sql
     
-    # Execute the combined script
+    # Execute the combined script in a transaction
+    echo "Executing main SQL script..."
     psql -v ON_ERROR_STOP=1 -U '${DB_USER}' -d '${DB_NAME}' -f combined_script.sql
 ' 2>&1 | tee "${LOG_FILE}"
 
