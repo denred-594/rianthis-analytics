@@ -200,23 +200,31 @@ if ! docker exec -i "${CONTAINER_DB}" bash -c '
     cd '${WORK_DIR}'
     export PGPASSWORD='${DB_PASSWORD}'
     
-    # First, extract and execute DROP DATABASE commands separately
-    grep -i "^DROP DATABASE" setup_with_paths.sql > drop_db_commands.sql 2>/dev/null || true
-    if [ -s drop_db_commands.sql ]; then
-        echo "Executing DROP DATABASE commands..."
-        psql -v ON_ERROR_STOP=1 -U '${DB_USER}' -d postgres -f drop_db_commands.sql
+    # Extract and execute DROP/CREATE DATABASE commands separately
+    grep -i "^DROP DATABASE" setup_with_paths.sql > db_commands.sql 2>/dev/null || true
+    grep -i "^CREATE DATABASE" setup_with_paths.sql >> db_commands.sql 2>/dev/null || true
+    
+    if [ -s db_commands.sql ]; then
+        echo "Executing database commands outside of transaction..."
+        # Connect to postgres database to execute these commands
+        psql -v ON_ERROR_STOP=1 -U '${DB_USER}' -d postgres -f db_commands.sql
     fi
     
-    # Then execute the rest in a transaction
-    grep -iv "^DROP DATABASE" setup_with_paths.sql > main_script.sql
+    # Filter out database commands and execute the rest in a transaction
+    grep -iv "^DROP DATABASE" setup_with_paths.sql | grep -iv "^CREATE DATABASE" > main_script.sql || true
     
-    echo "BEGIN;" > combined_script.sql
-    cat main_script.sql >> combined_script.sql
-    echo "COMMIT;" >> combined_script.sql
-    
-    # Execute the combined script in a transaction
-    echo "Executing main SQL script..."
-    psql -v ON_ERROR_STOP=1 -U '${DB_USER}' -d '${DB_NAME}' -f combined_script.sql
+    if [ -s main_script.sql ]; then
+        echo "Executing main SQL script in transaction..."
+        # Only wrap in transaction if there are commands to execute
+        echo "BEGIN;" > combined_script.sql
+        cat main_script.sql >> combined_script.sql
+        echo "COMMIT;" >> combined_script.sql
+        
+        # Execute the combined script in a transaction
+        psql -v ON_ERROR_STOP=1 -U '${DB_USER}' -d '${DB_NAME}' -f combined_script.sql
+    else
+        echo "No non-database commands to execute in transaction."
+    fi
 ' 2>&1 | tee "${LOG_FILE}"
 
 then
