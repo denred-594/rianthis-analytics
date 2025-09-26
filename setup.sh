@@ -194,20 +194,20 @@ info "Executing SQL script with detailed logging..."
 # Create a log file in the container
 LOG_FILE="${WORK_DIR}/sql_import.log"
 
-# Execute the SQL script in the container
+# Execute the SQL script in a single transaction
 if ! docker exec -i "${CONTAINER_DB}" bash -c '
     set -euo pipefail
     cd '${WORK_DIR}'
     export PGPASSWORD='${DB_PASSWORD}'
     
-    # First, execute the schema part
-    grep -v "^\\\\" setup_with_paths.sql > schema_part.sql
-    psql -v ON_ERROR_STOP=1 -U '${DB_USER}' -d '${DB_NAME}' -f schema_part.sql
+    # Start a transaction and execute everything in one go
+    echo "BEGIN;" > combined_script.sql
+    cat setup_with_paths.sql >> combined_script.sql
+    echo "COMMIT;" >> combined_script.sql
     
-    # Then execute the import part
-    grep "^\\\\" setup_with_paths.sql > import_part.psql
-    psql -v ON_ERROR_STOP=1 -U '${DB_USER}' -d '${DB_NAME}' -f import_part.psql
-' 2>&1 | tee "${LOG_FILE}'
+    # Execute the combined script
+    psql -v ON_ERROR_STOP=1 -U '${DB_USER}' -d '${DB_NAME}' -f combined_script.sql
+' 2>&1 | tee "${LOG_FILE}"
 
 then
     error_exit "SQL import failed! Showing error log...\n$(docker exec ${CONTAINER_DB} cat "${LOG_FILE}" 2>/dev/null || echo 'Could not retrieve error log')"
