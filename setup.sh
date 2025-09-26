@@ -228,9 +228,6 @@ if ! docker exec -i "${CONTAINER_DB}" bash -c '
 ' 2>&1 | tee "${LOG_FILE}"
 
 then
-    error_exit "SQL import failed! Showing error log...\n$(docker exec ${CONTAINER_DB} cat "${LOG_FILE}" 2>/dev/null || echo 'Could not retrieve error log')"
-fi
-"; then
     # If SQL execution failed, show the error log
     error_exit "SQL import failed! Showing error log...\n$(docker exec ${CONTAINER_DB} cat "${LOG_FILE}" 2>/dev/null || echo 'Could not retrieve error log')"
 fi
